@@ -1,0 +1,1 @@
+detect how well you can shoot
