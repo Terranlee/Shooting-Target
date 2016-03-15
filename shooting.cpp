@@ -8,6 +8,7 @@ using namespace std;
 using namespace cv;
 
 const int COLS = 1000;
+const int DELTA = 50;
 
 bool loadAndScale(const string& filename, Mat& pic){
     Mat orig = imread(filename);
@@ -33,9 +34,7 @@ void onMouseCatchColor(int mouseEvent, int x, int y, int flags, void* param){
 }
 
 void RGB2HSVEqualize(const Mat& picRGB, Mat& picHSV){    
-    cout<<"a"<<endl;
     cvtColor(picRGB, picHSV, COLOR_BGR2HSV);
-    cout<<"a"<<endl;
     // equalize
     vector<Mat> hsvSplit;
     split(picHSV, hsvSplit);
@@ -43,29 +42,33 @@ void RGB2HSVEqualize(const Mat& picRGB, Mat& picHSV){
     merge(hsvSplit,picHSV);
 }
 
-void catchColor(const Mat& pic){
-    namedWindow("background");
-    imshow("background", pic);
+void catchColor(const Mat& pic, Vec3b& background, Vec3b& target){
+    namedWindow("catch background color");
+    imshow("catch background color", pic);
     Point p_back, p_tar;
-    setMouseCallback("background", onMouseCatchColor, &p_back);
+    setMouseCallback("catch background color", onMouseCatchColor, &p_back);
     waitKey(0);
-    //destroyWindow("background");
+    destroyWindow("catch background color");
 
-/*
-    namedWindow("catch target");
-    imshow("catch target", pic);
-    setMouseCallback("catch target", onMouseCatchColor, &p_tar);
+    namedWindow("catch target color");
+    imshow("catch target color", pic);
+    setMouseCallback("catch target color", onMouseCatchColor, &p_tar);
     waitKey(0);
-    destroyWindow("catch target");
-*/
+    destroyWindow("catch target color");
     
     Mat picHSV;    
     RGB2HSVEqualize(pic, picHSV);
 
-    Vec3b background = picHSV.at<Vec3b>(p_back);
+    background = picHSV.at<Vec3b>(p_back);
+    target = picHSV.at<Vec3b>(p_tar);
 
-    Vec3b low = background - Vec3b(50, 50, 50);
-    Vec3b high = background + Vec3b(50, 50, 50);
+    cout<<"background color: "<<background<<endl;
+    cout<<"target color: "<<target<<endl;
+}
+
+double contourCircle(const Mat& picHSV, const Vec3b& color, Point& c){
+    Vec3b low = color - Vec3b(DELTA, DELTA, DELTA);
+    Vec3b high = color + Vec3b(DELTA, DELTA, DELTA);
 
     Mat picThreshold;
     inRange(picHSV, low, high, picThreshold);
@@ -74,6 +77,35 @@ void catchColor(const Mat& pic){
     imshow("answer", picThreshold);
     waitKey(0);
     destroyWindow("answer");
+
+    vector<vector<Point> > contours;
+    findContours(picThreshold, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
+    cout<<"find "<<contours.size()<<" contours"<<endl;
+    // get max contour
+    double max_size = 0.0;
+    vector<vector<Point> >::iterator which;
+    for(vector<vector<Point> >::iterator iter = contours.begin(); iter != contours.end(); ++iter){
+        double area = contourArea(*iter);
+        if(area > max_size){
+            max_size = area;
+            which = iter;
+        }
+    }
+    cout<<"max contour at "<<which - contours.begin()<<" with size "<<max_size<<endl;
+
+    Mat result(picThreshold.size(),CV_8U,Scalar(0));
+    float radius;
+    Point2f center;
+    minEnclosingCircle(Mat(*which), center, radius);
+    circle(result, Point(center), static_cast<int>(radius), Scalar(255), 2);
+
+    namedWindow("contours");
+    imshow("contours",result);
+    waitKey(0);
+    destroyWindow("contours");
+
+    c = Point(center);
+    return radius;
 }
 
 int main(int argc, char const *argv[])
@@ -81,7 +113,15 @@ int main(int argc, char const *argv[])
     string filename = "origin/image1.JPG";
     Mat pic;
     loadAndScale(filename, pic);
-    catchColor(pic);
+
+    Vec3b background, target;
+    catchColor(pic, background, target);
+
+    Mat picHSV;
+    RGB2HSVEqualize(pic, picHSV);
+
+    Point center;
+    double radius = contourCircle(picHSV, background, center);
 
     return 0;
 }
