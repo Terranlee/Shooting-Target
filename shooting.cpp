@@ -7,7 +7,9 @@
 using namespace std;
 using namespace cv;
 
+// scale the picture to 1000 columns
 const int COLS = 1000;
+// low and high threshold 
 const int DELTA = 50;
 
 bool loadAndScale(const string& filename, Mat& pic){
@@ -66,6 +68,34 @@ void catchColor(const Mat& pic, Vec3b& background, Vec3b& target){
     cout<<"target color: "<<target<<endl;
 }
 
+float getMaxContour(const vector<vector<Point> >& contours, Point& c){
+    double max_size = 0.0;
+    vector<vector<Point> >::const_iterator which;
+    for(vector<vector<Point> >::const_iterator iter = contours.begin(); iter != contours.end(); ++iter){
+        double area = contourArea(*iter);
+        if(area > max_size){
+            max_size = area;
+            which = iter;
+        }
+    }
+    cout<<"max size contour at "<<which - contours.begin()<<" with size "<<max_size<<endl;
+    float radius;
+    Point2f center;
+    minEnclosingCircle(Mat(*which), center, radius);
+    c = Point(center);
+    return radius;
+}
+
+void getAllContours(const vector<vector<Point> >& contours, vector<Point>& centers, vector<float>& radius){
+    for(vector<vector<Point> >::const_iterator iter = contours.begin(); iter != contours.end(); ++iter){
+        float r;
+        Point2f c;
+        minEnclosingCircle(Mat(*iter), c, r);
+        centers.push_back(Point(c));
+        radius.push_back(r);
+    }
+}
+
 double contourCircle(const Mat& picHSV, const Vec3b& color, Point& c){
     Vec3b low = color - Vec3b(DELTA, DELTA, DELTA);
     Vec3b high = color + Vec3b(DELTA, DELTA, DELTA);
@@ -81,32 +111,19 @@ double contourCircle(const Mat& picHSV, const Vec3b& color, Point& c){
     vector<vector<Point> > contours;
     findContours(picThreshold, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
     cout<<"find "<<contours.size()<<" contours"<<endl;
-    // get max contour
-    double max_size = 0.0;
-    vector<vector<Point> >::iterator which;
-    for(vector<vector<Point> >::iterator iter = contours.begin(); iter != contours.end(); ++iter){
-        double area = contourArea(*iter);
-        if(area > max_size){
-            max_size = area;
-            which = iter;
-        }
-    }
-    cout<<"max contour at "<<which - contours.begin()<<" with size "<<max_size<<endl;
+
+    float radius = getMaxContour(contours, c);
 
     Mat result(picThreshold.size(),CV_8U,Scalar(0));
-    float radius;
-    Point2f center;
-    minEnclosingCircle(Mat(*which), center, radius);
-    circle(result, Point(center), static_cast<int>(radius), Scalar(255), 2);
-
+    circle(result, c, static_cast<int>(radius), Scalar(255), 2);
     namedWindow("contours");
-    imshow("contours",result);
+    imshow("contours", result);
     waitKey(0);
     destroyWindow("contours");
 
-    c = Point(center);
     return radius;
 }
+
 
 int main(int argc, char const *argv[])
 {
@@ -122,6 +139,6 @@ int main(int argc, char const *argv[])
 
     Point center;
     double radius = contourCircle(picHSV, background, center);
-
+    radius = contourCircle(picHSV, target, center);
     return 0;
 }
