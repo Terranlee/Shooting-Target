@@ -9,10 +9,12 @@
 using namespace std;
 using namespace cv;
 
+// keyboard code for enter
+const int ENTER = 10;
 // scale the picture to 1000 columns
 const int COLS = 1000;
 // low and high threshold 
-const int DELTA = 40;
+const int DELTA = 50;
 // how large is the target area
 // for air pistol, it is ring8 to ring10
 const int TARGET_SIZE = 3;
@@ -45,10 +47,12 @@ void onMouseCatchColor(int mouseEvent, int x, int y, int flags, void* param){
 void RGB2HSVEqualize(const Mat& picRGB, Mat& picHSV){    
     cvtColor(picRGB, picHSV, COLOR_BGR2HSV);
     // equalize
+    /*
     vector<Mat> hsvSplit;
     split(picHSV, hsvSplit);
     equalizeHist(hsvSplit[2],hsvSplit[2]);
     merge(hsvSplit,picHSV);
+    */
 }
 
 void catchColor(const Mat& pic, Vec3b& background, Vec3b& target){
@@ -56,13 +60,21 @@ void catchColor(const Mat& pic, Vec3b& background, Vec3b& target){
     imshow("catch background color", pic);
     Point p_back, p_tar;
     setMouseCallback("catch background color", onMouseCatchColor, &p_back);
-    waitKey(0);
+    while(true){
+        int key = waitKey(0);
+        if(key == ENTER)
+            break;
+    }
     destroyWindow("catch background color");
 
     namedWindow("catch target color");
     imshow("catch target color", pic);
     setMouseCallback("catch target color", onMouseCatchColor, &p_tar);
-    waitKey(0);
+    while(true){
+        int key = waitKey(0);
+        if(key == ENTER)
+            break;
+    }
     destroyWindow("catch target color");
     
     Mat picHSV;    
@@ -179,8 +191,9 @@ double getScore(const vector<Point>& shoot, const Point& center, const double pp
 void shootingScore(const vector<string>& filenames){
     // catch background and target color in the first picture
     Mat pic;
-    loadAndScale(filenames[0], pic);
+    loadAndScale(filenames[1], pic);
     Vec3b background, target;
+    cout<<"catch color on: "<<filenames[1]<<endl;
     catchColor(pic, background, target);
 
     for(vector<string>::const_iterator iter = filenames.begin(); iter != filenames.end(); ++iter){
@@ -188,6 +201,9 @@ void shootingScore(const vector<string>& filenames){
         loadAndScale(*iter, pic);
         Mat picHSV;
         RGB2HSVEqualize(pic, picHSV);
+
+
+        imwrite("hsv" + *iter, picHSV);
 
         Point target_center;
         double target_radius = contourTarget(picHSV, target, target_center);
