@@ -220,7 +220,7 @@ void shootingScore(const vector<string>& filenames){
 int main(int argc, char const *argv[])
 {
     vector<string> strs;
-    lsDir("test", strs);
+    lsDir("origin", strs);
     shootingScore(strs);
     return 0;
 }
