@@ -12,7 +12,12 @@ using namespace cv;
 // scale the picture to 1000 columns
 const int COLS = 1000;
 // low and high threshold 
-const int DELTA = 50;
+const int DELTA = 40;
+// how large is the target area
+// for air pistol, it is ring8 to ring10
+const int TARGET_SIZE = 3;
+// max score
+const double MAX_SCORE = 10.0;
 
 bool loadAndScale(const string& filename, Mat& pic){
     Mat orig = imread(filename);
@@ -153,37 +158,54 @@ void lsDir(const string& dirName, vector<string>& files){
     struct dirent *ptr;
     while((ptr = readdir(dir)) != NULL){
         if(ptr->d_name[0] != '.')
-            files.push_back(string(ptr->d_name));
+            files.push_back(dirName + "/" + string(ptr->d_name));
     }
     closedir(dir);
 }
 
-void test(){
-    string filename = "origin/image1.JPG";
-    Mat pic;
-    loadAndScale(filename, pic);
+double getScore(const vector<Point>& shoot, const Point& center, const double ppr){
+    // ppr means pixel per ring
+    double avg = 0.0;
+    for(vector<Point>::const_iterator iter = shoot.begin(); iter != shoot.end(); ++iter){
+        double dist = norm(*iter - center);
+        double ring = dist / ppr;
+        double score = MAX_SCORE - ring;
+        cout<<score<<endl;
+        avg += score;
+    }
+    return avg / double(shoot.size());
+}
 
+void shootingScore(const vector<string>& filenames){
+    // catch background and target color in the first picture
+    Mat pic;
+    loadAndScale(filenames[0], pic);
     Vec3b background, target;
     catchColor(pic, background, target);
 
-    Mat picHSV;
-    RGB2HSVEqualize(pic, picHSV);
+    for(vector<string>::const_iterator iter = filenames.begin(); iter != filenames.end(); ++iter){
+        // then, for every picture, calculate the score
+        loadAndScale(*iter, pic);
+        Mat picHSV;
+        RGB2HSVEqualize(pic, picHSV);
 
-    Point target_center;
-    double target_radius = contourTarget(picHSV, target, target_center);
+        Point target_center;
+        double target_radius = contourTarget(picHSV, target, target_center);
 
-    vector<Point> background_centers;
-    vector<float> background_radius;
-    contourBackground(picHSV, background, background_centers, background_radius);
+        vector<Point> background_centers;
+        vector<float> background_radius;
+        contourBackground(picHSV, background, background_centers, background_radius);
+
+        double ppr = double(target_radius) / TARGET_SIZE;
+        double avg = getScore(background_centers, target_center, ppr);
+        cout<<"average score is: "<<avg<<endl;
+    }
 }
 
 int main(int argc, char const *argv[])
 {
     vector<string> strs;
     lsDir("origin", strs);
-    for (std::vector<string>::iterator i = strs.begin(); i != strs.end(); ++i)
-    {
-        cout<<*i<<endl;
-    }
+    shootingScore(strs);
     return 0;
 }
