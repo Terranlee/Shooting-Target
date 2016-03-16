@@ -182,7 +182,7 @@ double getScore(const vector<Point>& shoot, const Point& center, const double pp
         double dist = norm(*iter - center);
         double ring = dist / ppr;
         double score = MAX_SCORE - ring;
-        cout<<score<<endl;
+        //cout<<score<<endl;
         avg += score;
     }
     return avg / double(shoot.size());
@@ -193,7 +193,7 @@ void shootingScore(const vector<string>& filenames){
     Mat pic;
     loadAndScale(filenames[1], pic);
     Vec3b background, target;
-    cout<<"catch color on: "<<filenames[1]<<endl;
+    cout<<"select color on: "<<filenames[1]<<endl;
     catchColor(pic, background, target);
 
     for(vector<string>::const_iterator iter = filenames.begin(); iter != filenames.end(); ++iter){
@@ -202,8 +202,7 @@ void shootingScore(const vector<string>& filenames){
         Mat picHSV;
         RGB2HSVEqualize(pic, picHSV);
 
-
-        imwrite("hsv" + *iter, picHSV);
+        //imwrite("hsv" + *iter, picHSV);
 
         Point target_center;
         double target_radius = contourTarget(picHSV, target, target_center);
@@ -221,7 +220,7 @@ void shootingScore(const vector<string>& filenames){
 int main(int argc, char const *argv[])
 {
     vector<string> strs;
-    lsDir("origin", strs);
+    lsDir("test", strs);
     shootingScore(strs);
     return 0;
 }
