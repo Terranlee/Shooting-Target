@@ -96,17 +96,27 @@ void getAllContours(const vector<vector<Point> >& contours, vector<Point>& cente
     }
 }
 
-double contourCircle(const Mat& picHSV, const Vec3b& color, Point& c){
+void rangeThreshold(const Mat& picHSV, const Vec3b& color, Mat& picThreshold){
     Vec3b low = color - Vec3b(DELTA, DELTA, DELTA);
     Vec3b high = color + Vec3b(DELTA, DELTA, DELTA);
 
-    Mat picThreshold;
     inRange(picHSV, low, high, picThreshold);
+
+    // reduce noise
+    Mat element = getStructuringElement(MORPH_RECT, Size(5, 5));
+    morphologyEx(picThreshold, picThreshold, MORPH_OPEN, element);
+    morphologyEx(picThreshold, picThreshold, MORPH_CLOSE, element);
     
-    namedWindow("answer");
-    imshow("answer", picThreshold);
+    // debug, show the threshold result
+    namedWindow("threshold");
+    imshow("threshold", picThreshold);
     waitKey(0);
-    destroyWindow("answer");
+    destroyWindow("threshold");
+}
+
+double contourTarget(const Mat& picHSV, const Vec3b& color, Point& c){
+    Mat picThreshold;
+    rangeThreshold(picHSV, color, picThreshold);
 
     vector<vector<Point> > contours;
     findContours(picThreshold, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
@@ -114,6 +124,7 @@ double contourCircle(const Mat& picHSV, const Vec3b& color, Point& c){
 
     float radius = getMaxContour(contours, c);
 
+    // debug, show the contour circle
     Mat result(picThreshold.size(),CV_8U,Scalar(0));
     circle(result, c, static_cast<int>(radius), Scalar(255), 2);
     namedWindow("contours");
@@ -124,6 +135,16 @@ double contourCircle(const Mat& picHSV, const Vec3b& color, Point& c){
     return radius;
 }
 
+void contourBackground(const Mat& picHSV, const Vec3b& color, vector<Point>& cs, vector<float>& rs){
+    Mat picThreshold;
+    rangeThreshold(picHSV, color, picThreshold);
+
+    vector<vector<Point> > contours;
+    findContours(picThreshold, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
+    cout<<"find "<<contours.size()<<" contours"<<endl;
+
+    getAllContours(contours, cs, rs);
+}
 
 int main(int argc, char const *argv[])
 {
