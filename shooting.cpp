@@ -1,5 +1,7 @@
 #include <iostream>
 #include <vector>
+#include <dirent.h>
+
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -146,8 +148,17 @@ void contourBackground(const Mat& picHSV, const Vec3b& color, vector<Point>& cs,
     getAllContours(contours, cs, rs);
 }
 
-int main(int argc, char const *argv[])
-{
+void lsDir(const string& dirName, vector<string>& files){
+    DIR* dir = opendir(dirName.data());
+    struct dirent *ptr;
+    while((ptr = readdir(dir)) != NULL){
+        if(ptr->d_name[0] != '.')
+            files.push_back(string(ptr->d_name));
+    }
+    closedir(dir);
+}
+
+void test(){
     string filename = "origin/image1.JPG";
     Mat pic;
     loadAndScale(filename, pic);
@@ -158,8 +169,21 @@ int main(int argc, char const *argv[])
     Mat picHSV;
     RGB2HSVEqualize(pic, picHSV);
 
-    Point center;
-    double radius = contourCircle(picHSV, background, center);
-    radius = contourCircle(picHSV, target, center);
+    Point target_center;
+    double target_radius = contourTarget(picHSV, target, target_center);
+
+    vector<Point> background_centers;
+    vector<float> background_radius;
+    contourBackground(picHSV, background, background_centers, background_radius);
+}
+
+int main(int argc, char const *argv[])
+{
+    vector<string> strs;
+    lsDir("origin", strs);
+    for (std::vector<string>::iterator i = strs.begin(); i != strs.end(); ++i)
+    {
+        cout<<*i<<endl;
+    }
     return 0;
 }
