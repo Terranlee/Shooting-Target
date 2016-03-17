@@ -1,6 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <dirent.h>
+#include <algorithm>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -14,12 +15,15 @@ const int ENTER = 10;
 // scale the picture to 1000 columns
 const int COLS = 1000;
 // low and high threshold 
-const int DELTA = 50;
+const int DELTA = 60;
 // how large is the target area
 // for air pistol, it is ring8 to ring10
 const int TARGET_SIZE = 3;
 // max score
 const double MAX_SCORE = 10.0;
+// max number of shoot on each target
+// use this to calculate the overlap
+const int MAX_SHOOT = 10;
 
 bool loadAndScale(const string& filename, Mat& pic){
     Mat orig = imread(filename);
@@ -87,7 +91,7 @@ void catchColor(const Mat& pic, Vec3b& background, Vec3b& target){
     cout<<"target color: "<<target<<endl;
 }
 
-float getMaxContour(const vector<vector<Point> >& contours, Point& c){
+void getMaxContour(const vector<vector<Point> >& contours, Point& c, double& r){
     double max_size = 0.0;
     vector<vector<Point> >::const_iterator which;
     for(vector<vector<Point> >::const_iterator iter = contours.begin(); iter != contours.end(); ++iter){
@@ -102,14 +106,29 @@ float getMaxContour(const vector<vector<Point> >& contours, Point& c){
     Point2f center;
     minEnclosingCircle(Mat(*which), center, radius);
     c = Point(center);
-    return radius;
+    r = radius;
 }
 
-void getAllContours(const vector<vector<Point> >& contours, vector<Point>& centers, vector<float>& radius){
-    for(vector<vector<Point> >::const_iterator iter = contours.begin(); iter != contours.end(); ++iter){
+void getAllContours(const vector<vector<Point> >& contours, vector<Point>& centers, vector<double>& radius){
+    // use this to solve the overlapping of shooting marks
+    vector<pair<double, int> > area;
+    for(int i=0; i<contours.size(); i++)
+        area.push_back(make_pair(contourArea(contours[i]), i));
+    sort(area.begin(), area.end());
+
+    for(int i=0; i<contours.size(); i++){
         float r;
         Point2f c;
-        minEnclosingCircle(Mat(*iter), c, r);
+        minEnclosingCircle(Mat(contours[i]), c, r);
+        centers.push_back(Point(c));
+        radius.push_back(r);
+    }
+
+    // add additional shooting marks here
+    for(int i=0; i<(MAX_SHOOT - contours.size()); i++){
+        float r;
+        Point2f c;
+        minEnclosingCircle(Mat(contours[ area[i].second ]), c, r);
         centers.push_back(Point(c));
         radius.push_back(r);
     }
@@ -133,7 +152,7 @@ void rangeThreshold(const Mat& picHSV, const Vec3b& color, Mat& picThreshold){
     destroyWindow("threshold");
 }
 
-double contourTarget(const Mat& picHSV, const Vec3b& color, Point& c){
+void contourTarget(const Mat& picHSV, const Vec3b& color, Point& c, double& r){
     Mat picThreshold;
     rangeThreshold(picHSV, color, picThreshold);
 
@@ -141,20 +160,18 @@ double contourTarget(const Mat& picHSV, const Vec3b& color, Point& c){
     findContours(picThreshold, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
     cout<<"find "<<contours.size()<<" contours"<<endl;
 
-    float radius = getMaxContour(contours, c);
+    getMaxContour(contours, c, r);
 
     // debug, show the contour circle
     Mat result(picThreshold.size(),CV_8U,Scalar(0));
-    circle(result, c, static_cast<int>(radius), Scalar(255), 2);
+    circle(result, c, static_cast<int>(r), Scalar(255), 2);
     namedWindow("contours");
     imshow("contours", result);
     waitKey(0);
     destroyWindow("contours");
-
-    return radius;
 }
 
-void contourBackground(const Mat& picHSV, const Vec3b& color, vector<Point>& cs, vector<float>& rs){
+void contourBackground(const Mat& picHSV, const Vec3b& color, vector<Point>& cs, vector<double>& rs){
     Mat picThreshold;
     rangeThreshold(picHSV, color, picThreshold);
 
@@ -205,13 +222,14 @@ void shootingScore(const vector<string>& filenames){
         //imwrite("hsv" + *iter, picHSV);
 
         Point target_center;
-        double target_radius = contourTarget(picHSV, target, target_center);
+        double target_radius;
+        contourTarget(picHSV, target, target_center, target_radius);
 
         vector<Point> background_centers;
-        vector<float> background_radius;
+        vector<double> background_radius;
         contourBackground(picHSV, background, background_centers, background_radius);
 
-        double ppr = double(target_radius) / TARGET_SIZE;
+        double ppr = target_radius / TARGET_SIZE;
         double avg = getScore(background_centers, target_center, ppr);
         cout<<"average score is: "<<avg<<endl;
     }
